@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Diagnostics;
 using System.Linq;
-using Debug = UnityEngine.Debug;
 
 internal static class CpuUsageExt
 {
