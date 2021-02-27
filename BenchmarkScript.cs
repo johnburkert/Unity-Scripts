@@ -1,13 +1,44 @@
-using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 
-[RequireComponent(typeof(Camera))]
 public class BenchmarkScript : MonoBehaviour
 {
-    private long _counter;
+    public TMP_Text tmpText;
+
+    private bool _active;
+    private long _frames;
     private double _average;
-    private readonly Queue<long> _history = new Queue<long>();
+    private readonly RingQueue<long> _history = new RingQueue<long>(100);
+    
+    private void Start()
+    {
+        Debug.Log($"[Benchmark] Resolution: {Screen.width}x{Screen.height}");
+        Debug.Log($"[Benchmark] QualitySetting: {QualitySettings.names[QualitySettings.GetQualityLevel()]}");
+
+        if (tmpText == null)
+            tmpText = GetComponent<TMP_Text>();
+
+        StartCoroutine(GuiRoutine());
+    }
+
+    private void Update()
+    {
+        if (_active)
+            _frames++;
+    }
+
+    private IEnumerator GuiRoutine()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(0.5f);
+
+            if (tmpText)
+                tmpText.SetText($"FRAMES: {_frames} ({_average:F1})");
+        }
+    }
     
     public void StartBenchmark()
     {
@@ -15,46 +46,31 @@ public class BenchmarkScript : MonoBehaviour
         QualitySettings.vSyncCount = 0;
 
         // if stop wasn't called last time
-        if (_counter > 0)
-            StopBenchmark();
+        StopBenchmark();
+
+        // reset frame counter
+        _frames = 0;
+        
+        // set as active
+        _active = true;
     }
     
     public void StopBenchmark()
     {
-       // is there previous data?
-        if (_counter > 0)
-            _history.Enqueue(_counter);
-
-        // keep track of last 10
-        if (_history.Count > 10)
-            _history.Dequeue();
+        // if not active with frames, exit
+        if (!(_active && _frames > 0))
+            return;
         
+        // add to history
+        _history.Enqueue(_frames);
+
+        // log result
+        Debug.Log($"[Benchmark] Score: {_frames}");
+
         // calculate average
-        if (_history.Count > 0)
-            _average = _history.Average();
-
-        // log if we have a result
-        if (_counter > 0)
-            LogResult();
+        _average = _history.Average();
         
-        // reset counter
-        _counter = 0;
-    }
-
-    private void LogResult()
-    {
-        Debug.Log($"Score: {_counter}, {Screen.width}x{Screen.height}, {QualitySettings.names[QualitySettings.GetQualityLevel()]}");
-    }
-
-    private void OnPostRender()
-    {
-        // increment counter
-        _counter++;
-    }
-
-    private void OnGUI()
-    {
-        GUI.Box(new Rect(10, 10, 150, 25), $"COUNTER: {_counter}");
-        GUI.Box(new Rect(10, 40, 150, 25), $"AVERAGE: {_average:F1}");
+        // set as inactive
+        _active = false;
     }
 }

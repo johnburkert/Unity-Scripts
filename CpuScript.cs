@@ -1,27 +1,32 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.Diagnostics;
 using System.Linq;
+using TMPro;
+using UnityEngine;
 
-internal static class CpuUsageExt
+internal static class CpuScriptExt
 {
     internal static double Time(this Process process) => process.TotalProcessorTime.TotalMilliseconds;
 
     internal static double Time(this IEnumerable<Process> processes) => processes.Select(x => x.Time()).Sum();
 }
 
-public class CpuUsage : MonoBehaviour
+public class CpuScript : MonoBehaviour
 {
-    public bool currentProcessOnly;
+    public bool currentProcessOnly = true;
     public float pollingFrequency = 1f;
 
-    private double _cpuUsage;
+    public TMP_Text tmpText;
+
+    private readonly RingQueue<double> _history = new RingQueue<double>(100);
     
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
+        if (tmpText == null)
+            tmpText = GetComponent<TMP_Text>();
+        
         StartCoroutine(Poll());
     }
     
@@ -29,6 +34,8 @@ public class CpuUsage : MonoBehaviour
 
     private IEnumerator Poll()
     {
+        var procCount = Environment.ProcessorCount;
+        
         var prevSysTime = DateTime.Now;
         var prevCpuTime = GetCpuTime();
 
@@ -41,16 +48,16 @@ public class CpuUsage : MonoBehaviour
 
             var sysTime = currSysTime - prevSysTime;
             var cpuTime = currCpuTime - prevCpuTime;
-            
-            _cpuUsage = cpuTime * 100.0 / (Environment.ProcessorCount * sysTime.TotalMilliseconds);
 
+            var cpu = cpuTime * 100.0 / (procCount * sysTime.TotalMilliseconds);
+            
+            _history.Enqueue(cpu);
+            
+            if (tmpText)
+                tmpText.SetText($"CPU: {cpu:F1}% ({_history.Average():F1}%)");
+            
             prevSysTime = currSysTime;
             prevCpuTime = currCpuTime;
         }
-    }
-
-    private void OnGUI()
-    {
-        GUI.Label(new Rect(10, 10, 200, 50), $"{_cpuUsage:F2}%");
     }
 }
